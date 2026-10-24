@@ -59,7 +59,7 @@ jobs:
           python-version: "3.13"
       - name: Generate a SARIF report from the sample log
         run: python -m secfund logs samples/auth.log --year 2026 --format sarif --fail-on never -o secfund.sarif
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: secfund-sarif
           path: secfund.sarif
