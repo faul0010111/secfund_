@@ -1,6 +1,5 @@
 # SecFund — Defensive Cybersecurity Fundamentals Toolkit
 
-![CI](https://github.com/faul0010111/secfund/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
