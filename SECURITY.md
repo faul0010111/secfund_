@@ -1,27 +1,28 @@
-# Política de Segurança
+# Security Policy
 
-## Versões suportadas
+## Supported versions
 
-| Versão | Suporte |
+| Version | Support |
 |---|---|
-| 1.1.x | ✅ correções de segurança |
-| 1.0.x | ❌ atualize para 1.1 (inclui correções de log injection e do cálculo da nota) |
+| 1.2.x | ✅ security fixes |
+| 1.1.x | ⚠️ upgrade to 1.2 (same code, English output; severity values changed) |
+| 1.0.x | ❌ upgrade (includes fixes for log injection and the grade calculation) |
 
-## Como reportar uma vulnerabilidade
+## How to report a vulnerability
 
-Não abra uma *issue* pública. Use o recurso **"Report a vulnerability"** da aba *Security* do repositório (GitHub Private Vulnerability Reporting) ou escreva para `seu-email@exemplo.com` com:
+Do not open a public issue. Use the **"Report a vulnerability"** feature in the repository's *Security* tab (GitHub Private Vulnerability Reporting) or email `your-email@example.com` with:
 
-1. descrição e impacto;
-2. passos para reproduzir (idealmente um log/arquivo mínimo);
-3. versão afetada.
+1. a description and the impact;
+2. steps to reproduce (ideally a minimal log/file);
+3. the affected version.
 
-Compromisso: confirmação em até 7 dias e correção ou plano de mitigação em até 30 dias.
+Commitment: acknowledgement within 7 days and a fix or mitigation plan within 30 days.
 
-## Escopo
+## Scope
 
-Dentro do escopo: falhas nos parsers (injeção, ReDoS, DoS), na verificação de assinatura/hash, no tratamento de chaves e na validação de entrada de rede.
-Fora do escopo: resultados de detecção "incompletos" (falsos negativos documentados em *Limitações*), e uso da ferramenta contra sistemas sem autorização.
+In scope: flaws in the parsers (injection, ReDoS, DoS), in signature/hash verification, in key handling and in network input validation.
+Out of scope: "incomplete" detection results (false negatives documented under *Known limitations*), and use of the tool against systems without authorization.
 
-## Uso responsável
+## Responsible use
 
-O SecFund é uma ferramenta **defensiva**. As funções de rede (`headers --url`, `tls`) só devem ser executadas contra ativos próprios ou com autorização por escrito.
+SecFund is a **defensive** tool. The network features (`headers --url`, `tls`) must only be run against assets you own or are authorized in writing to assess.

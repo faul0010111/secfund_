@@ -5,11 +5,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "secfund"
 dynamic = ["version"]
-description = "Toolkit defensivo de fundamentos de cibersegurança: detecção em logs, FIM assinado, senhas, headers HTTP e TLS."
+description = "Defensive cybersecurity fundamentals toolkit: SSH log detection, signed file integrity monitoring, password auditing, HTTP security headers and TLS."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Seu Nome" }]  # TODO: troque pelo seu nome
+authors = [{ name = "Your Name" }]  # TODO: replace with your name
 keywords = ["security", "blue-team", "sarif", "mitre-attack", "fim", "log-analysis", "tls"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -20,7 +20,7 @@ classifiers = [
     "Topic :: Security",
     "Typing :: Typed",
 ]
-dependencies = []  # somente biblioteca padrão: superfície de ataque de supply chain mínima
+dependencies = []  # standard library only: minimal supply-chain attack surface
 
 [project.optional-dependencies]
 dev = ["ruff", "mypy", "bandit", "coverage"]
@@ -44,8 +44,8 @@ target-version = "py310"
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S", "SIM", "C4", "RET", "PL"]
 ignore = [
-    "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR2004",  # complexidade: aceitável em parsers/CLI
-    "S101",  # assert só aparece em testes
+    "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR2004",  # complexity rules: acceptable in parsers/CLI
+    "S101",  # assert only appears in tests
 ]
 
 [tool.ruff.lint.per-file-ignores]

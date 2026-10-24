@@ -1,32 +1,40 @@
 # Changelog
 
-Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
+Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## [1.2.0] — 2026-10-24
+
+### Changed
+- **The whole project is now in English**: CLI messages and help, reports, docstrings, tests and documentation.
+- **BREAKING (output values):** severities are now `CRITICAL`/`HIGH`/`MEDIUM`/`LOW`/`INFO` (were `CRITICO`/`ALTO`/`MEDIO`/`BAIXO`); header statuses are `OK`/`MISSING`/`WEAK` (were `OK`/`AUSENTE`/`FRACO`); password verdicts are `STRONG`/`MEDIUM`/`WEAK` (were `FORTE`/`MÉDIA`/`FRACA`); `logs` kinds are `Brute force`/`Password spraying`/`Distributed attack`. JSON/SARIF consumers that filter on these values must be updated. Rule IDs, MITRE/OWASP references, field names and exit codes are unchanged.
+- `fim check` labels are now `MODIFIED`/`NEW`/`REMOVED`/`PERMISSIONS`; the baseline format is unchanged.
+- The `headers --url` User-Agent now reports the real package version.
 
 ## [1.1.0] — 2026-10-18
 
-### Adicionado
-- **Módulo `tls`**: validade/cadeia/hostname do certificado, expiração, protocolo e cipher negociados.
-- **Relatórios JSON e SARIF 2.1.0** para todos os módulos, `--output` e `--fail-on` (gate de CI).
-- `logs`: detecção de **ataque distribuído**, allowlist por CIDR, IPv6, timestamps ISO 8601, `sshd-session`.
-- `fim`: **baseline assinada com HMAC-SHA256**, comando `keygen`, `--exclude`, escrita atômica, tolerância a arquivos ilegíveis.
-- `password`: hash **scrypt** (padrão), `--verify`, `needs_rehash`, `--generate`, checagem de vazamentos por **k-anonymity** ou arquivo offline, detecção de variações *leetspeak*, normalização Unicode.
-- `headers`: análise de **flags de cookies** e `Cross-Origin-Opener-Policy`.
-- Empacotamento (`pyproject.toml`, comando `secfund`), CI, CodeQL, Dependabot, Makefile, `py.typed`.
-- 126 testes (97% de cobertura), `ruff`, `mypy --strict`, `bandit`.
+### Added
+- **`tls` module**: certificate validity/chain/hostname, expiration, negotiated protocol and cipher.
+- **JSON and SARIF 2.1.0 reports** for every module, plus `--output` and `--fail-on` (CI gate).
+- `logs`: **distributed attack** detection, CIDR allowlist, IPv6, ISO 8601 timestamps, `sshd-session`.
+- `fim`: **HMAC-SHA256 signed baseline**, `keygen` command, `--exclude`, atomic writes, tolerance for unreadable files.
+- `password`: **scrypt** hashing (default), `--verify`, `needs_rehash`, `--generate`, breach checking via **k-anonymity** or an offline file, *leetspeak* variant detection, Unicode normalization.
+- `headers`: **cookie flag** analysis and `Cross-Origin-Opener-Policy`.
+- Packaging (`pyproject.toml`, `secfund` command), CI, CodeQL, Dependabot, Makefile, `py.typed`.
+- 126 tests (97% coverage), `ruff`, `mypy --strict`, `bandit`.
 
-### Segurança
-- `logs`: proteção contra **log injection** (forja de IP e injeção de terminal), descarte de linhas gigantes.
-- `fim`: detecção de **remoção de assinatura** (downgrade) e baseline adulterada (exit 4).
-- `password`: parâmetros de custo do hash armazenado são validados antes do cálculo (evita DoS).
+### Security
+- `logs`: protection against **log injection** (IP forging and terminal injection), oversized lines are discarded.
+- `fim`: detection of **signature stripping** (downgrade) and tampered baselines (exit 4).
+- `password`: cost parameters of a stored hash are validated before any computation (prevents DoS).
 
-### Corrigido
-- `headers`: a nota variava de denominador conforme o status dos itens, de modo que corrigir um problema podia piorar a nota.
-- `headers`: múltiplos `Set-Cookie` eram sobrescritos ao buscar via rede.
-- `logs`: um login aceito *antes* das falhas era marcado como comprometimento.
+### Fixed
+- `headers`: the grade's denominator changed with item status, so fixing a problem could lower the grade.
+- `headers`: multiple `Set-Cookie` headers were overwritten when fetched over the network.
+- `logs`: a login accepted *before* the failures was flagged as a compromise.
 
-### Alterado
-- Formato da baseline do FIM (v2); baselines da 1.0 devem ser recriadas.
-- `hash_password` agora aceita `algorithm`; o padrão passou de PBKDF2 para scrypt.
+### Changed
+- FIM baseline format (v2); 1.0 baselines must be recreated.
+- `hash_password` now takes `algorithm`; the default changed from PBKDF2 to scrypt.
 
 ## [1.0.0] — 2026-10-17
-- Versão inicial: `logs`, `fim`, `password` e `headers`.
+- Initial release: `logs`, `fim`, `password` and `headers`.

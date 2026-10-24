@@ -1,167 +1,168 @@
-# SecFund — Toolkit Defensivo de Fundamentos de Cibersegurança
+# SecFund — Defensive Cybersecurity Fundamentals Toolkit
 
-[![CI](https://github.com/SEU_USUARIO/secfund/actions/workflows/ci.yml/badge.svg)](https://github.com/SEU_USUARIO/secfund/actions/workflows/ci.yml)
+[![CI](https://github.com/YOUR_USERNAME/secfund/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/secfund/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![Dependências](https://img.shields.io/badge/depend%C3%AAncias%20de%20runtime-0-brightgreen)
-![Licença](https://img.shields.io/badge/licen%C3%A7a-MIT-lightgrey)
+![Runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
-Cinco controles fundamentais de segurança defensiva (**detecção em logs, integridade de arquivos, senhas, headers HTTP e TLS**) em Python puro, **sem nenhuma dependência de runtime**. Cada achado é mapeado para **MITRE ATT&CK / OWASP / NIST / CIS** e pode ser exportado em **JSON** ou **SARIF 2.1.0** (o formato do GitHub Code Scanning), com código de saída pensado para **gates de CI**.
+Five fundamental defensive-security controls (**log detection, file integrity, passwords, HTTP headers and TLS**) in pure Python, with **zero runtime dependencies**. Every finding is mapped to **MITRE ATT&CK / OWASP / NIST / CIS** and can be exported as **JSON** or **SARIF 2.1.0** (the GitHub Code Scanning format), with exit codes designed for **CI gates**.
 
-O foco não é "mais uma ferramenta", e sim mostrar como se escreve código de segurança: **tratar entrada como hostil**, **falhar de forma segura** e **documentar as decisões** ([modelo de ameaças](docs/THREAT_MODEL.md) e [ADRs](docs/DECISIONS.md)).
+The goal is not "yet another tool" but to show how security code is written: **treat input as hostile**, **fail safely** and **document the decisions** ([threat model](docs/THREAT_MODEL.md) and [ADRs](docs/DECISIONS.md)).
 
-## Módulos
+## Modules
 
-| Comando | O que faz | Referências |
+| Command | What it does | References |
 |---|---|---|
-| `logs` | Detecta **brute force**, **password spraying** e **ataque distribuído** (muitos IPs contra a mesma conta) em logs SSH; sinaliza possível comprometimento (login aceito após as falhas); suporta allowlist por CIDR, IPv6 e timestamps ISO 8601 | MITRE T1110.001/.003, T1078 · CIS 8 |
-| `fim` | **Monitor de integridade de arquivos** (SHA-256) com **baseline assinada por HMAC**, que detecta adulteração da própria baseline e ataques de remoção de assinatura | MITRE T1565, T1505.003, T1070 · CIS 3 |
-| `password` | Audita senhas (inclui variações *leetspeak*), **gera** senhas seguras, faz hash com **scrypt** (ou PBKDF2), **verifica** hashes e checa vazamentos via **k-anonymity** (HIBP) ou arquivo offline | NIST SP 800-63B · OWASP Password Storage |
-| `headers` | Analisa **security headers HTTP** e **flags de cookies** (Secure/HttpOnly/SameSite) e dá nota A–F | OWASP A05:2021 |
-| `tls` | Audita **certificado** (validade, cadeia, hostname, expiração), **protocolo** e **cipher suite** negociados | OWASP A02:2021 · CIS 3.10 |
+| `logs` | Detects **brute force**, **password spraying** and **distributed attacks** (many IPs against one account) in SSH logs; flags possible compromise (login accepted after the failures); supports CIDR allowlists, IPv6 and ISO 8601 timestamps | MITRE T1110.001/.003, T1078 · CIS 8 |
+| `fim` | **File integrity monitor** (SHA-256) with an **HMAC-signed baseline** that detects tampering with the baseline itself and signature-stripping (downgrade) attacks | MITRE T1565, T1505.003, T1070 · CIS 3 |
+| `password` | Audits passwords (including *leetspeak* variants), **generates** secure passwords, hashes with **scrypt** (or PBKDF2), **verifies** hashes and checks breaches via **k-anonymity** (HIBP) or an offline file | NIST SP 800-63B · OWASP Password Storage |
+| `headers` | Analyzes **HTTP security headers** and **cookie flags** (Secure/HttpOnly/SameSite) and assigns an A–F grade | OWASP A05:2021 |
+| `tls` | Audits the **certificate** (validity, chain, hostname, expiration) plus the negotiated **protocol** and **cipher suite** | OWASP A02:2021 · CIS 3.10 |
 
 ```mermaid
 flowchart LR
     A[auth.log] --> L[logs]
-    B[diretório + baseline HMAC] --> F[fim]
-    C[URL ou JSON de headers] --> H[headers]
-    D[host:porta] --> T[tls]
-    L --> I[(Issue<br/>modelo unificado)]
+    B[directory + HMAC baseline] --> F[fim]
+    C[URL or headers JSON] --> H[headers]
+    D[host:port] --> T[tls]
+    L --> I[(Issue<br/>unified model)]
     F --> I
     H --> I
     T --> I
     I --> R[report]
-    R --> X1[texto]
+    R --> X1[text]
     R --> X2[JSON]
     R --> X3[SARIF 2.1.0]
-    R --> E[código de saída<br/>gate de CI --fail-on]
-    P[password] -. independente .- CLI[cli]
+    R --> E[exit code<br/>CI gate --fail-on]
+    P[password] -. standalone .- CLI[cli]
 ```
 
-## Instalação e uso
+## Install and usage
 
 ```bash
-python -m pip install .            # ou apenas rode direto da pasta: python -m secfund
+python -m pip install .            # or just run from the folder: python -m secfund
 secfund --version
 ```
 
 ```bash
-# Logs SSH: detecta ataques e ignora seu scanner interno
+# SSH logs: detect attacks and ignore your internal scanner
 secfund logs samples/auth.log --year 2026 --allow-ip 10.0.0.0/8
 
-# Integridade de arquivos com baseline assinada (guarde a chave FORA do servidor monitorado)
+# File integrity with a signed baseline (keep the key OFF the monitored server)
 secfund fim keygen --key-file fim.key
 secfund fim init  /var/www/site --baseline baseline.json --key-file fim.key --exclude "*.log"
 secfund fim check /var/www/site --baseline baseline.json --key-file fim.key
 
-# Senhas
-secfund password --generate --length 24 --hash      # gera + audita + hash scrypt
-secfund password --verify 'scrypt$131072$8$1$...'   # confere (e avisa se precisa de re-hash)
-secfund password --pwned                            # só 5 chars do SHA-1 saem da máquina
+# Passwords
+secfund password --generate --length 24 --hash      # generate + audit + scrypt hash
+secfund password --verify 'scrypt$131072$8$1$...'   # verify (and warn if a rehash is due)
+secfund password --pwned                            # only 5 chars of the SHA-1 leave the machine
 
-# Web / TLS (somente alvos seus ou autorizados)
-secfund headers --url https://seu-site.com
-secfund tls seu-site.com:443
+# Web / TLS (your own or authorized targets only)
+secfund headers --url https://your-site.com
+secfund tls your-site.com:443
 
-# Relatórios para ferramentas e CI
-secfund logs auth.log --format sarif -o resultado.sarif
-secfund headers --url https://seu-site.com --fail-on high     # só falha em ALTO/CRÍTICO
+# Reports for tools and CI
+secfund logs auth.log --format sarif -o result.sarif
+secfund headers --url https://your-site.com --fail-on high     # fail only on HIGH/CRITICAL
 ```
 
-**Códigos de saída:** `0` limpo · `1` achados · `2` achado CRÍTICO · `3` erro de uso/E-S · `4` baseline adulterada.
+**Exit codes:** `0` clean · `1` findings · `2` CRITICAL finding · `3` usage/I-O error · `4` tampered baseline.
+**Severities:** `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFO`.
 
-### Exemplos reais de saída
+### Real output examples
 
-`logs` (arquivo `samples/auth.log`):
-
-```
-28 eventos analisados | limiar=5 falhas/5min
-
-[CRITICO] Brute force de 203.0.113.45: 7 falhas, 3 usuário(s) (T1110.001) [POSSÍVEL COMPROMETIMENTO: login aceito após as falhas]
-    usuários-alvo: admin, root, ubuntu
-[ALTO] Ataque distribuído de 6 IPs distintos: 6 falhas, 1 usuário(s) (T1110.001)
-    usuários-alvo: deploy
-    origens: 192.0.2.101, 192.0.2.102, 192.0.2.103, 192.0.2.104, 192.0.2.105, 192.0.2.106
-[MEDIO] Password spraying de 198.51.100.7: 6 falhas, 6 usuário(s) (T1110.003)
-```
-
-`fim` — site desfigurado e web shell plantado; depois, o atacante tenta editar a baseline para esconder o rastro:
+`logs` (file `samples/auth.log`):
 
 ```
-[MODIFICADO] site/index.html
-[NOVO] site/shell.php
+28 events analyzed | threshold=5 failures/5min
 
-2 alteração(ões) detectada(s).            # exit 1
-
-ALERTA DE INTEGRIDADE: assinatura inválida: baseline adulterada ou chave incorreta     # exit 4
+[CRITICAL] Brute force from 203.0.113.45: 7 failures, 3 user(s) (T1110.001) [POSSIBLE COMPROMISE: login accepted after the failures]
+    target users: admin, root, ubuntu
+[HIGH] Distributed attack from 6 distinct IPs: 6 failures, 1 user(s) (T1110.001)
+    target users: deploy
+    sources: 192.0.2.101, 192.0.2.102, 192.0.2.103, 192.0.2.104, 192.0.2.105, 192.0.2.106
+[MEDIUM] Password spraying from 198.51.100.7: 6 failures, 6 user(s) (T1110.003)
 ```
 
-## Decisões de segurança (o que diferencia de um tutorial)
+`fim` — site defaced and a web shell planted; then the attacker edits the baseline to cover their tracks:
 
-| Risco | Como o código se defende | Onde está testado |
+```
+[MODIFIED] site/index.html
+[NEW] site/shell.php
+
+2 change(s) detected.                     # exit 1
+
+INTEGRITY ALERT: invalid signature: baseline tampered with, or wrong key     # exit 4
+```
+
+## Security design decisions (what sets it apart from a tutorial)
+
+| Risk | How the code defends itself | Where it is tested |
 |---|---|---|
-| **Log injection** — o atacante controla o nome de usuário e poderia forjar o IP atribuído ao evento (culpando um inocente e disparando bloqueios) | Regex ancoradas no fim da linha, IP validado com `ipaddress`, usuário sanitizado (sem ANSI/controle) e truncado, linhas gigantes descartadas | `tests/test_logs.py::TestParserHardening` |
-| **Baseline adulterada** — quem muda os arquivos também reescreve a baseline | HMAC-SHA256 com chave externa; comparação em tempo constante | `tests/test_fim.py::TestSignedBaseline` |
-| **Downgrade de assinatura** — remover a assinatura para a verificação "passar" | Se há chave e a baseline não tem assinatura, a verificação **falha** | `test_signature_stripping_downgrade_rejected` |
-| **Hash armazenado como entrada hostil** — `n=2**30` forjado vira DoS | Parâmetros de custo limitados e validados antes de qualquer cálculo | `test_hostile_parameters_rejected_*` |
-| **Timing attack** na verificação de senha/assinatura | `hmac.compare_digest` | — |
-| **Unicode** — `é` composto vs. decomposto gerando hashes diferentes | Normalização NFKC (NIST 800-63B) | `test_unicode_normalization` |
-| **Vazamento da senha ao checar HIBP** | k-anonymity: só 5 caracteres do SHA-1 trafegam; teste prova que o sufixo não sai | `TestPwnedOnline` |
-| **SSRF/LFI** em `--url` | Apenas `http`/`https`; `file://`, `ftp://` etc. rejeitados | `test_rejects_non_http_scheme` |
-| **Chave HMAC exposta** | `keygen` cria com `0600`, nunca sobrescreve (`O_EXCL`) e a CLI avisa se a permissão está frouxa | `TestKeys`, `TestKeyPermissionWarning` |
-| **Symlinks** levando a fora do diretório monitorado | `os.walk(followlinks=False)` e symlinks ignorados | `test_symlinks_are_not_followed` |
+| **Log injection** — the attacker controls the username and could forge the IP attributed to the event (framing an innocent host and triggering wrongful blocks) | End-anchored regexes, IP validated with `ipaddress`, username sanitized (no ANSI/control chars) and truncated, oversized lines discarded | `tests/test_logs.py::TestParserHardening` |
+| **Tampered baseline** — whoever changes the files also rewrites the baseline | HMAC-SHA256 with an external key; constant-time comparison | `tests/test_fim.py::TestSignedBaseline` |
+| **Signature downgrade** — stripping the signature so verification "passes" | If a key is given and the baseline has no signature, verification **fails** | `test_signature_stripping_downgrade_rejected` |
+| **Stored hash as hostile input** — a forged `n=2**30` becomes a DoS | Cost parameters are bounded and validated before any computation | `test_hostile_parameters_rejected_*` |
+| **Timing attacks** on password/signature verification | `hmac.compare_digest` | — |
+| **Unicode** — composed vs. decomposed `é` producing different hashes | NFKC normalization (NIST 800-63B) | `test_unicode_normalization` |
+| **Leaking the password while checking HIBP** | k-anonymity: only 5 characters of the SHA-1 travel; a test proves the suffix never leaves | `TestPwnedOnline` |
+| **SSRF/LFI** via `--url` | `http`/`https` only; `file://`, `ftp://`, etc. are rejected | `test_rejects_non_http_scheme` |
+| **Exposed HMAC key** | `keygen` creates it as `0600`, never overwrites (`O_EXCL`), and the CLI warns on loose permissions | `TestKeys`, `TestKeyPermissionWarning` |
+| **Symlinks** escaping the monitored directory | `os.walk(followlinks=False)` and symlinks are skipped | `test_symlinks_are_not_followed` |
 
-## Qualidade e engenharia
+## Quality and engineering
 
-- **126 testes** (unitários + integração com servidores TLS/HTTP locais em loopback), **97% de cobertura** (com branches) e piso de 90% no CI.
-- `ruff` (inclui regras de segurança `S`), `mypy --strict` e `bandit` sem apontamentos.
-- CI em Python 3.10–3.13, **CodeQL** semanal, **Dependabot**, permissões mínimas nos workflows.
-- Zero dependências de runtime: nada de supply chain para auditar.
+- **126 tests** (unit + integration with local loopback TLS/HTTP servers), **97% coverage** (with branches) and a 90% floor in CI.
+- `ruff` (including the `S` security rules), `mypy --strict` and `bandit` report nothing.
+- CI on Python 3.10–3.13, weekly **CodeQL**, **Dependabot**, least-privilege workflow permissions.
+- Zero runtime dependencies: no supply chain to audit.
 
 ```bash
-make all      # lint + tipos + SAST + testes com cobertura
+make all      # lint + types + SAST + tests with coverage
 ```
 
-## Usando como gate de CI
+## Using it as a CI gate
 
 ```yaml
-- name: Auditar headers de segurança do staging
-  run: secfund headers --url https://staging.exemplo.com --fail-on high --format sarif -o headers.sarif
+- name: Audit security headers on staging
+  run: secfund headers --url https://staging.example.com --fail-on high --format sarif -o headers.sarif
 
-- name: Enviar para a aba Security do GitHub
+- name: Upload to the GitHub Security tab
   uses: github/codeql-action/upload-sarif@v3
   with:
     sarif_file: headers.sarif
 ```
 
-## Estrutura
+## Layout
 
 ```
 secfund/        logs.py  fim.py  passwords.py  headers.py  tls.py  report.py  cli.py
-tests/          unitários + integração (netfixtures.py sobe servidores locais)
-samples/        log SSH com 4 cenários de ataque, headers fracos/com cookies
+tests/          unit + integration (netfixtures.py spins up local servers)
+samples/        SSH log with 4 attack scenarios, weak/cookie headers
 docs/           THREAT_MODEL.md  DECISIONS.md
 .github/        CI, CodeQL, Dependabot
 ```
 
-## Limitações conhecidas (e honestas)
+## Known limitations (stated honestly)
 
-- `logs`: foco em `sshd` (syslog e ISO 8601); o syslog tradicional não traz o ano (use `--year`) e a virada de ano não é tratada. Ataques distribuídos *lentos* (fora da janela) passam despercebidos.
-- `fim`: execução sob demanda, sem *daemon* em tempo real (inotify/fanotify).
-- `tls`: avalia o que foi **negociado** por um cliente moderno; não enumera todos os protocolos/ciphers aceitos (isso é varredura ativa, ex.: testssl.sh).
-- `headers`: usa `HEAD`; alguns servidores só enviam `Set-Cookie` em `GET`.
-- A lista embutida de senhas comuns é mínima de propósito; use `--pwned`/`--pwned-file` para cobertura real.
+- `logs`: focused on `sshd` (syslog and ISO 8601); traditional syslog carries no year (use `--year`) and year rollover is not handled. *Slow* distributed attacks (outside the window) go unnoticed.
+- `fim`: on-demand execution, no real-time daemon (inotify/fanotify).
+- `tls`: evaluates what was **negotiated** by a modern client; it does not enumerate every protocol/cipher the server accepts (that is active scanning, e.g. testssl.sh).
+- `headers`: uses `HEAD`; some servers only send `Set-Cookie` on `GET`.
+- The built-in common-password list is deliberately minimal; use `--pwned`/`--pwned-file` for real coverage.
 
 ## Roadmap
 
-- [ ] Parser para `journald` (JSON) e `auth.log` do Debian/RHEL com `/var/log/secure`
-- [ ] `fim watch` com inotify e baseline com rotação de chaves
-- [ ] Correlação multi-fonte (ex.: IP do brute force × IP do login aceito × arquivo novo)
-- [ ] Publicação no PyPI com *trusted publishing* e SBOM
+- [ ] `journald` (JSON) parser and RHEL/Debian `/var/log/secure` variants
+- [ ] `fim watch` with inotify and baseline key rotation
+- [ ] Cross-source correlation (e.g., brute-force IP × accepted-login IP × new file)
+- [ ] PyPI publishing with *trusted publishing* and an SBOM
 
-## Uso ético
+## Ethical use
 
-Ferramenta **exclusivamente defensiva**. Analise somente sistemas, domínios e logs que você possui ou tem autorização por escrito para avaliar. Veja [SECURITY.md](SECURITY.md).
+**Exclusively defensive** tool. Only analyze systems, domains and logs that you own or are explicitly authorized in writing to assess. See [SECURITY.md](SECURITY.md).
 
-## Licença
+## License
 
-MIT — veja [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
