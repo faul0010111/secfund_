@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "secfund"
+dynamic = ["version"]
+description = "Toolkit defensivo de fundamentos de cibersegurança: detecção em logs, FIM assinado, senhas, headers HTTP e TLS."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Seu Nome" }]  # TODO: troque pelo seu nome
+keywords = ["security", "blue-team", "sarif", "mitre-attack", "fim", "log-analysis", "tls"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security",
+    "Typing :: Typed",
+]
+dependencies = []  # somente biblioteca padrão: superfície de ataque de supply chain mínima
+
+[project.optional-dependencies]
+dev = ["ruff", "mypy", "bandit", "coverage"]
+
+[project.scripts]
+secfund = "secfund.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "secfund.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["secfund*"]
+
+[tool.setuptools.package-data]
+secfund = ["py.typed"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "SIM", "C4", "RET", "PL"]
+ignore = [
+    "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR2004",  # complexidade: aceitável em parsers/CLI
+    "S101",  # assert só aparece em testes
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106", "S108", "S603", "S607", "PLC0415", "E501"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["secfund"]
+
+[tool.coverage.run]
+source = ["secfund"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+exclude_also = ["if __name__ == .__main__.:"]
+
+[tool.bandit]
+exclude_dirs = ["tests"]

@@ -1,0 +1,6 @@
+{
+  "Server": "Apache/2.4.29 (Ubuntu)",
+  "X-Powered-By": "PHP/7.2.1",
+  "Content-Type": "text/html",
+  "Content-Security-Policy": "default-src * 'unsafe-inline'"
+}
