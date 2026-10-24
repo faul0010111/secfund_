@@ -10,16 +10,16 @@ def sample_issues():
         Issue(
             "SF-LOGS-001",
             "logs",
-            "CRITICO",
-            "Brute force de 1.2.3.4",
-            "7 falhas",
+            "CRITICAL",
+            "Brute force from 1.2.3.4",
+            "7 failures",
             "auth.log",
             12,
             "T1110.001",
             "bloqueie",
         ),
-        Issue("SF-HDR-001", "headers", "BAIXO", "CSP: ausente", "sem CSP", "https://x.test"),
-        Issue("SF-LOGS-001", "logs", "MEDIO", "Brute force de 5.6.7.8", "", "auth.log", 0),
+        Issue("SF-HDR-001", "headers", "LOW", "CSP: missing", "no CSP", "https://x.test"),
+        Issue("SF-LOGS-001", "logs", "MEDIUM", "Brute force from 5.6.7.8", "", "auth.log", 0),
     ]
 
 
@@ -30,7 +30,7 @@ class TestIssue(unittest.TestCase):
 
     def test_summary_counts_all_levels(self):
         summary = report.summarize(sample_issues())
-        self.assertEqual(summary, {"CRITICO": 1, "ALTO": 0, "MEDIO": 1, "BAIXO": 1, "INFO": 0})
+        self.assertEqual(summary, {"CRITICAL": 1, "HIGH": 0, "MEDIUM": 1, "LOW": 1, "INFO": 0})
 
 
 class TestExitCode(unittest.TestCase):
@@ -41,7 +41,7 @@ class TestExitCode(unittest.TestCase):
         self.assertEqual(report.exit_code(sample_issues()), 2)
 
     def test_fail_on_threshold(self):
-        low_only = [Issue("SF-HDR-001", "headers", "BAIXO", "t")]
+        low_only = [Issue("SF-HDR-001", "headers", "LOW", "t")]
         self.assertEqual(report.exit_code(low_only, "low"), 1)
         self.assertEqual(report.exit_code(low_only, "medium"), 0)
         self.assertEqual(report.exit_code(low_only, "never"), 0)
@@ -55,7 +55,7 @@ class TestExporters(unittest.TestCase):
     def test_json_structure(self):
         doc = json.loads(report.to_json(sample_issues()))
         self.assertEqual(doc["tool"]["name"], "secfund")
-        self.assertEqual(doc["summary"]["CRITICO"], 1)
+        self.assertEqual(doc["summary"]["CRITICAL"], 1)
         self.assertEqual(len(doc["issues"]), 3)
         self.assertEqual(doc["issues"][0]["technique"], "T1110.001")
 
@@ -65,12 +65,12 @@ class TestExporters(unittest.TestCase):
         run = doc["runs"][0]
         self.assertEqual(run["tool"]["driver"]["name"], "SecFund")
         rule_ids = [r["id"] for r in run["tool"]["driver"]["rules"]]
-        self.assertEqual(sorted(rule_ids), ["SF-HDR-001", "SF-LOGS-001"])  # regras deduplicadas
+        self.assertEqual(sorted(rule_ids), ["SF-HDR-001", "SF-LOGS-001"])  # rules are deduplicated
         self.assertEqual(len(run["results"]), 3)
         for result in run["results"]:
             self.assertIn(result["ruleId"], rule_ids)
             loc = result["locations"][0]["physicalLocation"]
-            self.assertGreaterEqual(loc["region"]["startLine"], 1)  # exigido pelo GitHub
+            self.assertGreaterEqual(loc["region"]["startLine"], 1)  # required by GitHub
             self.assertTrue(loc["artifactLocation"]["uri"])
 
     def test_sarif_levels_and_security_severity(self):
@@ -80,7 +80,7 @@ class TestExporters(unittest.TestCase):
         self.assertEqual(rule["properties"]["security-severity"], "9.5")
 
     def test_sarif_backslashes_normalized(self):
-        issue = Issue("SF-FIM-001", "fim", "ALTO", "t", location="site\\a.txt")
+        issue = Issue("SF-FIM-001", "fim", "HIGH", "t", location="site\\a.txt")
         uri = json.loads(report.to_sarif([issue]))["runs"][0]["results"][0]["locations"][0]["physicalLocation"][
             "artifactLocation"
         ]["uri"]

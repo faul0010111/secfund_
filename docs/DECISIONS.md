@@ -1,39 +1,45 @@
-# Decisões de Arquitetura (ADRs)
+# Architecture Decision Records (ADRs)
 
-Registro curto das decisões que moldaram o SecFund: contexto, decisão e consequências.
+A short log of the decisions that shaped SecFund: context, decision and consequences.
 
-## ADR-1 — Somente biblioteca padrão (zero dependências de runtime)
+## ADR-1 — Standard library only (zero runtime dependencies)
 
-**Contexto.** Ferramentas de segurança são alvo de *supply chain attacks*; cada dependência amplia a superfície a auditar.
-**Decisão.** Todo o runtime usa apenas a stdlib (`hashlib`, `hmac`, `ssl`, `ipaddress`, `secrets`, `argparse`...). Ferramentas de qualidade ficam em `[dev]`.
-**Consequências.** (+) Auditoria trivial, instalação instantânea, nada para o Dependabot atualizar em produção. (−) Sem Argon2id (não está na stdlib) e sem parsing de certificados além do que `ssl` expõe.
+**Context.** Security tools are targets of *supply-chain attacks*; every dependency widens the surface to audit.
+**Decision.** All runtime code uses only the stdlib (`hashlib`, `hmac`, `ssl`, `ipaddress`, `secrets`, `argparse`...). Quality tooling lives in `[dev]`.
+**Consequences.** (+) Trivial to audit, instant install, nothing for Dependabot to update in production. (−) No Argon2id (not in the stdlib) and no certificate parsing beyond what `ssl` exposes.
 
-## ADR-2 — scrypt como padrão de hash; PBKDF2 como opção
+## ADR-2 — scrypt as the default hash; PBKDF2 as an option
 
-**Contexto.** A OWASP recomenda Argon2id, depois scrypt; PBKDF2 só quando FIPS-140 é exigido.
-**Decisão.** `scrypt` (N=2^17, r=8, p=1) por padrão, via `hashlib.scrypt`; `pbkdf2` (≥ 600.000 iterações) disponível. Formato autodescritivo (`scrypt$n$r$p$salt$hash`) e `needs_rehash()` para migrar parâmetros no login.
-**Consequências.** (+) Resistência a GPU/ASIC com a stdlib. (−) ~128 MB de memória por hash: o limite de parâmetros na verificação (ADR-4) evita que isso vire vetor de DoS. Quem puder adicionar dependências deve preferir Argon2id.
+**Context.** OWASP recommends Argon2id, then scrypt; PBKDF2 only when FIPS-140 is required.
+**Decision.** `scrypt` (N=2^17, r=8, p=1) by default via `hashlib.scrypt`; `pbkdf2` (≥ 600,000 iterations) available. Self-describing format (`scrypt$n$r$p$salt$hash`) and `needs_rehash()` to migrate parameters at login.
+**Consequences.** (+) GPU/ASIC resistance with the stdlib. (−) ~128 MB of memory per hash: the parameter limits at verification time (ADR-4) stop that from becoming a DoS vector. Teams that can add dependencies should prefer Argon2id.
 
-## ADR-3 — Baseline do FIM assinada por HMAC, com defesa contra downgrade
+## ADR-3 — HMAC-signed FIM baseline, with downgrade protection
 
-**Contexto.** Uma baseline em texto puro não protege contra um atacante que já altera arquivos no host: ele recalcula a baseline.
-**Decisão.** Assinatura HMAC-SHA256 sobre uma serialização canônica; chave externa (arquivo `0600` ou `SECFUND_KEY`). Se a chave é informada e **não há assinatura**, a verificação falha.
-**Consequências.** (+) Adulteração e remoção de assinatura são detectadas (exit 4). (−) A segurança passa a depender da custódia da chave; HMAC (simétrico) exige a chave no verificador. Evolução possível: assinatura assimétrica (Ed25519), que não está na stdlib.
+**Context.** A plain-text baseline does not protect against an attacker who already modifies files on the host: they simply recompute the baseline.
+**Decision.** HMAC-SHA256 over a canonical serialization; external key (a `0600` file or `SECFUND_KEY`). If a key is provided and there is **no signature**, verification fails.
+**Consequences.** (+) Tampering and signature stripping are detected (exit 4). (−) Security now depends on key custody; HMAC (symmetric) requires the key at the verifier. Possible evolution: asymmetric signatures (Ed25519), which are not in the stdlib.
 
-## ADR-4 — Todo dado externo é hostil
+## ADR-4 — All external data is hostile
 
-**Contexto.** Logs contêm campos controlados pelo atacante; hashes e baselines vêm de armazenamento que pode ser comprometido.
-**Decisão.** Parsers ancorados e validados (`ipaddress`, limites de tamanho), sanitização de saída para o terminal, parâmetros de custo de hash limitados *antes* de qualquer cálculo, leitura de rede com limite de bytes e timeout.
-**Consequências.** (+) Fecha classes inteiras de bugs (forja de IP, injeção de terminal, DoS por parâmetros). (−) Algumas linhas legítimas muito incomuns podem ser descartadas (documentado).
+**Context.** Logs contain attacker-controlled fields; hashes and baselines come from storage that may be compromised.
+**Decision.** Anchored and validated parsers (`ipaddress`, size limits), terminal-output sanitization, hash cost parameters bounded *before* any computation, network reads with byte limits and timeouts.
+**Consequences.** (+) Closes entire bug classes (IP forging, terminal injection, parameter-based DoS). (−) Some very unusual legitimate lines may be dropped (documented).
 
-## ADR-5 — Modelo unificado `Issue` + SARIF como formato de interoperabilidade
+## ADR-5 — Unified `Issue` model + SARIF as the interoperability format
 
-**Contexto.** Cada módulo produzia saídas diferentes, difíceis de integrar a CI e a dashboards.
-**Decisão.** Todos os módulos convertem seus resultados para `Issue` (regra, severidade, local, técnica MITRE/OWASP, remediação). `report.py` exporta texto, JSON e **SARIF 2.1.0**; `--fail-on` transforma a severidade em código de saída.
-**Consequências.** (+) Um único contrato de saída, integração direta com GitHub Code Scanning e pipelines. (−) O SARIF exige um "local" mesmo para achados que não são arquivos (URL, host:porta), então usamos o alvo como URI.
+**Context.** Each module produced a different output, hard to integrate with CI and dashboards.
+**Decision.** Every module converts its results to `Issue` (rule, severity, location, MITRE/OWASP technique, remediation). `report.py` exports text, JSON and **SARIF 2.1.0**; `--fail-on` turns severity into an exit code.
+**Consequences.** (+) A single output contract, direct integration with GitHub Code Scanning and pipelines. (−) SARIF requires a "location" even for findings that are not files (URL, host:port), so the target is used as the URI.
 
-## ADR-6 — Nota dos headers com pesos constantes
+## ADR-6 — Header grade with constant weights
 
-**Contexto.** Na versão 1.0 o peso de um item mudava conforme o status (ex.: CSP fraca valia 12, CSP correta 25), então o denominador da nota variava e corrigir um problema podia **piorar** a nota.
-**Decisão.** Cada item tem peso máximo fixo; OK vale 100%, FRACO 50%, AUSENTE 0%.
-**Consequências.** (+) Nota monotônica, comprovada por `test_grade_is_monotonic`. (−) Notas da 1.0 não são diretamente comparáveis com as da 1.1.
+**Context.** In version 1.0 an item's weight changed with its status (e.g., a weak CSP was worth 12, a correct one 25), so the grade's denominator varied and fixing a problem could **lower** the grade.
+**Decision.** Each item has a fixed maximum weight; OK earns 100%, WEAK 50%, MISSING 0%.
+**Consequences.** (+) The grade is monotonic, proven by `test_grade_is_monotonic`. (−) 1.0 grades are not directly comparable with 1.1+.
+
+## ADR-7 — English as the project language
+
+**Context.** The first releases were written in Portuguese; the project is meant to be read by an international audience (recruiters, contributors, security tooling).
+**Decision.** Code, messages, severities, reports, tests and documentation are all in English. Rule IDs, MITRE/OWASP references and SARIF fields are language-neutral.
+**Consequences.** (+) Wider audience; consistent vocabulary across JSON/SARIF consumers. (−) Breaking change in output values (`CRITICO` → `CRITICAL`, etc.), documented in the changelog as 1.2.0.

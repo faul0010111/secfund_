@@ -1,7 +1,7 @@
-"""Modelo unificado de achados e exportadores (JSON e SARIF 2.1.0).
+"""Unified findings model and exporters (JSON and SARIF 2.1.0).
 
-SARIF é o formato padrão da indústria para resultados de análise de segurança: pode ser
-enviado ao GitHub Code Scanning (aba Security) e consumido por IDEs e pipelines de CI.
+SARIF is the industry-standard format for security analysis results: it can be uploaded to
+GitHub Code Scanning (Security tab) and consumed by IDEs and CI pipelines.
 """
 
 from __future__ import annotations
@@ -14,35 +14,35 @@ from typing import Any
 
 from . import __version__
 
-SEVERITIES = ("CRITICO", "ALTO", "MEDIO", "BAIXO", "INFO")
-FAIL_LEVELS = {"critical": "CRITICO", "high": "ALTO", "medium": "MEDIO", "low": "BAIXO"}
+SEVERITIES = ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO")
+FAIL_LEVELS = {"critical": "CRITICAL", "high": "HIGH", "medium": "MEDIUM", "low": "LOW"}
 
-_SARIF_LEVEL = {"CRITICO": "error", "ALTO": "error", "MEDIO": "warning", "BAIXO": "note", "INFO": "note"}
-# Escala "security-severity" (0-10) usada pelo GitHub para ordenar alertas.
-_SECURITY_SEVERITY = {"CRITICO": "9.5", "ALTO": "8.0", "MEDIO": "5.5", "BAIXO": "3.0", "INFO": "0.0"}
+_SARIF_LEVEL = {"CRITICAL": "error", "HIGH": "error", "MEDIUM": "warning", "LOW": "note", "INFO": "note"}
+# "security-severity" scale (0-10) used by GitHub to rank alerts.
+_SECURITY_SEVERITY = {"CRITICAL": "9.5", "HIGH": "8.0", "MEDIUM": "5.5", "LOW": "3.0", "INFO": "0.0"}
 
 RULES: dict[str, str] = {
-    "SF-LOGS-001": "Brute force SSH: muitas falhas de autenticação vindas de um único IP",
-    "SF-LOGS-002": "Password spraying SSH: poucas tentativas por conta, muitas contas por IP",
-    "SF-LOGS-003": "Brute force distribuído: muitos IPs atacando a mesma conta",
-    "SF-FIM-001": "Arquivo monitorado foi modificado",
-    "SF-FIM-002": "Arquivo novo apareceu em diretório monitorado",
-    "SF-FIM-003": "Arquivo monitorado foi removido",
-    "SF-FIM-004": "Permissões de arquivo monitorado foram alteradas",
-    "SF-HDR-001": "Header de segurança HTTP ausente",
-    "SF-HDR-002": "Header de segurança HTTP mal configurado",
-    "SF-HDR-003": "Cookie sem atributos de segurança (Secure/HttpOnly/SameSite)",
-    "SF-HDR-004": "Divulgação de tecnologia ou versão do servidor",
-    "SF-TLS-001": "Certificado TLS inválido ou não confiável",
-    "SF-TLS-002": "Certificado TLS expirado ou próximo da expiração",
-    "SF-TLS-003": "Protocolo TLS obsoleto ou handshake falhou",
-    "SF-TLS-004": "Cipher suite fraca",
+    "SF-LOGS-001": "SSH brute force: many failed authentications from a single IP",
+    "SF-LOGS-002": "SSH password spraying: few attempts per account across many accounts from one IP",
+    "SF-LOGS-003": "Distributed brute force: many IPs attacking the same account",
+    "SF-FIM-001": "Monitored file was modified",
+    "SF-FIM-002": "New file appeared in a monitored directory",
+    "SF-FIM-003": "Monitored file was removed",
+    "SF-FIM-004": "Monitored file permissions changed",
+    "SF-HDR-001": "Missing HTTP security header",
+    "SF-HDR-002": "Misconfigured HTTP security header",
+    "SF-HDR-003": "Cookie without security attributes (Secure/HttpOnly/SameSite)",
+    "SF-HDR-004": "Server technology or version disclosure",
+    "SF-TLS-001": "Invalid or untrusted TLS certificate",
+    "SF-TLS-002": "Expired or soon-to-expire TLS certificate",
+    "SF-TLS-003": "Obsolete TLS protocol or failed handshake",
+    "SF-TLS-004": "Weak cipher suite",
 }
 
 
 @dataclass(frozen=True)
 class Issue:
-    """Achado normalizado, independente do módulo que o gerou."""
+    """Normalized finding, independent of the module that produced it."""
 
     rule_id: str
     module: str
@@ -56,7 +56,7 @@ class Issue:
 
     def __post_init__(self) -> None:
         if self.severity not in SEVERITIES:
-            raise ValueError(f"severidade inválida: {self.severity!r}")
+            raise ValueError(f"invalid severity: {self.severity!r}")
 
 
 def summarize(issues: Iterable[Issue]) -> dict[str, int]:
@@ -65,14 +65,14 @@ def summarize(issues: Iterable[Issue]) -> dict[str, int]:
 
 
 def exit_code(issues: Iterable[Issue], fail_on: str = "low") -> int:
-    """0 = nada no nível pedido; 1 = achados; 2 = achado CRÍTICO. Útil como gate de CI."""
+    """0 = nothing at the requested level; 1 = findings; 2 = CRITICAL finding. Useful as a CI gate."""
     if fail_on == "never":
         return 0
     limit = SEVERITIES.index(FAIL_LEVELS[fail_on])
     hits = [i for i in issues if SEVERITIES.index(i.severity) <= limit]
     if not hits:
         return 0
-    return 2 if any(i.severity == "CRITICO" for i in hits) else 1
+    return 2 if any(i.severity == "CRITICAL" for i in hits) else 1
 
 
 def to_json(issues: list[Issue]) -> str:
@@ -94,7 +94,7 @@ def to_sarif(issues: list[Issue]) -> str:
                 "id": i.rule_id,
                 "name": i.rule_id.replace("-", ""),
                 "shortDescription": {"text": description},
-                "help": {"text": description},  # genérico; a remediação específica vai em cada resultado
+                "help": {"text": description},  # generic; the specific remediation goes in each result
                 "properties": {
                     "security-severity": _SECURITY_SEVERITY[i.severity],
                     "tags": ["security", i.module] + ([i.technique] if i.technique else []),
@@ -111,7 +111,7 @@ def to_sarif(issues: list[Issue]) -> str:
                     {
                         "physicalLocation": {
                             "artifactLocation": {"uri": uri},
-                            "region": {"startLine": max(i.line, 1)},
+                            "region": {"startLine": max(i.line, 1)},  # GitHub requires startLine >= 1
                         }
                     }
                 ],

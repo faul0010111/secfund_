@@ -1,4 +1,4 @@
-"""Servidores locais (loopback) usados pelos testes de integração. Nada sai da máquina."""
+"""Local (loopback) servers used by the integration tests. Nothing leaves the machine."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 def make_self_signed(directory: Path) -> tuple[Path, Path]:
-    """Certificado autoassinado com SAN para localhost/127.0.0.1 (também serve de âncora de confiança)."""
+    """Self-signed certificate with a SAN for localhost/127.0.0.1 (also usable as a trust anchor)."""
     cert, key = directory / "cert.pem", directory / "key.pem"
     subprocess.run(  # noqa: S603
         [
@@ -28,7 +28,7 @@ def make_self_signed(directory: Path) -> tuple[Path, Path]:
 
 @contextmanager
 def tls_server(cert: Path, key: Path):
-    """Servidor TLS que apenas completa o handshake. Devolve a porta."""
+    """TLS server that only completes the handshake. Yields the port."""
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.load_cert_chain(cert, key)
     sock = socket.socket()
@@ -61,7 +61,7 @@ def tls_server(cert: Path, key: Path):
 
 @contextmanager
 def plain_server(payload: bytes):
-    """Servidor TCP que responde lixo (não-TLS) e fecha: simula alvo sem TLS na porta."""
+    """TCP server that replies with non-TLS garbage and closes: simulates a target without TLS on the port."""
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
     sock.listen(5)
@@ -93,7 +93,7 @@ def plain_server(payload: bytes):
 
 @contextmanager
 def http_server(response_headers: list[tuple[str, str]], range_body: str = ""):
-    """HTTP local: HEAD devolve os headers dados; GET /range/<prefixo> devolve ``range_body``."""
+    """Local HTTP: HEAD returns the given headers; GET /range/<prefix> returns ``range_body``."""
     seen: dict[str, str] = {}
 
     class Handler(BaseHTTPRequestHandler):

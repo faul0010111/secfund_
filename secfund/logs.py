@@ -1,15 +1,15 @@
-"""Detecção de brute force, password spraying e ataques distribuídos em logs SSH.
+"""Detection of brute force, password spraying and distributed attacks in SSH logs.
 
-Mapeamento MITRE ATT&CK: T1110.001 (Password Guessing), T1110.003 (Password Spraying),
-T1078 (Valid Accounts, quando há login aceito logo após as falhas).
+MITRE ATT&CK mapping: T1110.001 (Password Guessing), T1110.003 (Password Spraying),
+T1078 (Valid Accounts, when a login is accepted right after the failures).
 
-O log é tratado como entrada NÃO confiável (o atacante controla o nome de usuário):
-  * as regex são ancoradas no fim da linha e o usuário é "guloso", então um nome como
-    ``x from 9.9.9.9 port 1`` não consegue forjar o IP atribuído ao evento (evita culpar um
-    IP inocente e disparar bloqueios indevidos);
-  * o IP é validado com ``ipaddress`` e o usuário é sanitizado (sem caracteres de controle/ANSI
-    que poderiam manipular o terminal do analista) e truncado;
-  * linhas muito longas são descartadas, limitando o custo das regex.
+The log is treated as UNTRUSTED input (the attacker controls the username):
+  * the regexes are anchored at the end of the line and the username group is greedy, so a name
+    such as ``x from 9.9.9.9 port 1`` cannot forge the IP attributed to the event (which would
+    frame an innocent IP and trigger wrongful blocks);
+  * the IP is validated with ``ipaddress`` and the username is sanitized (no control/ANSI
+    characters that could manipulate the analyst's terminal) and truncated;
+  * very long lines are discarded, bounding the cost of the regexes.
 """
 
 from __future__ import annotations
@@ -28,10 +28,10 @@ MAX_USER_LEN = 64
 
 KIND_BRUTE = "Brute force"
 KIND_SPRAY = "Password spraying"
-KIND_DISTRIBUTED = "Ataque distribuído"
+KIND_DISTRIBUTED = "Distributed attack"
 _RULE_BY_KIND = {KIND_BRUTE: "SF-LOGS-001", KIND_SPRAY: "SF-LOGS-002", KIND_DISTRIBUTED: "SF-LOGS-003"}
 
-# Aceita syslog tradicional ("Oct 17 21:53:01") e ISO 8601 do rsyslog; sshd e sshd-session (OpenSSH >= 9.8).
+# Accepts traditional syslog ("Oct 17 21:53:01") and rsyslog ISO 8601; sshd and sshd-session (OpenSSH >= 9.8).
 _PROC = r"\S+\s+sshd(?:-session)?\[\d+\]:\s+(?P<msg>.*)"
 LINE_SYSLOG = re.compile(rf"^(?P<ts>[A-Z][a-z]{{2}}\s+\d{{1,2}}\s\d{{2}}:\d{{2}}:\d{{2}})\s+{_PROC}$")
 LINE_ISO = re.compile(
@@ -73,10 +73,10 @@ class Finding:
         return _RULE_BY_KIND[self.kind]
 
     def __str__(self) -> str:
-        flag = " [POSSÍVEL COMPROMETIMENTO: login aceito após as falhas]" if self.compromised else ""
+        flag = " [POSSIBLE COMPROMISE: login accepted after the failures]" if self.compromised else ""
         return (
-            f"[{self.severity}] {self.kind} de {self.ip}: {self.attempts} falhas, "
-            f"{len(self.users)} usuário(s) ({self.technique}){flag}"
+            f"[{self.severity}] {self.kind} from {self.ip}: {self.attempts} failures, "
+            f"{len(self.users)} user(s) ({self.technique}){flag}"
         )
 
 
@@ -116,7 +116,7 @@ def parse_line(line: str, year: int, lineno: int = 0) -> Event | None:
 
 
 def parse_log(lines: Iterable[str], year: int | None = None) -> list[Event]:
-    """Lê o log em streaming (não guarda as linhas, apenas os eventos relevantes)."""
+    """Reads the log as a stream (lines are not kept in memory, only the relevant events)."""
     year = year or datetime.now().year
     events = [e for n, line in enumerate(lines, 1) if (e := parse_line(line, year, n))]
     events.sort(key=lambda e: e.ts)
@@ -132,9 +132,9 @@ def analyze(
     distributed_ips: int = 5,
     allowlist: Iterable[str] = (),
 ) -> list[Finding]:
-    """Janela deslizante por IP (brute force/spraying) e por usuário (ataque distribuído).
+    """Sliding window per IP (brute force/spraying) and per user (distributed attack).
 
-    ``allowlist`` aceita IPs ou CIDRs (ex.: scanners internos de vulnerabilidade) a ignorar.
+    ``allowlist`` accepts IPs or CIDRs to ignore (e.g., internal vulnerability scanners).
     """
     nets = [ipaddress.ip_network(n, strict=False) for n in allowlist]
 
@@ -145,7 +145,7 @@ def analyze(
     events = sorted(events, key=lambda e: e.ts)
     findings: list[Finding] = []
 
-    # --- Por IP ---------------------------------------------------------------------------
+    # --- Per IP ---------------------------------------------------------------------------
     by_ip: dict[str, list[Event]] = defaultdict(list)
     for e in events:
         if not allowed(e.ip):
@@ -167,7 +167,7 @@ def analyze(
         spraying = len(users) >= spray_users
         kind = KIND_SPRAY if spraying else KIND_BRUTE
         compromised = any(e.kind == "accepted" and best[0].ts <= e.ts <= best[-1].ts + window for e in evs)
-        severity = "CRITICO" if compromised else "ALTO" if len(best) >= threshold * 3 else "MEDIO"
+        severity = "CRITICAL" if compromised else "HIGH" if len(best) >= threshold * 3 else "MEDIUM"
         findings.append(
             Finding(
                 ip, severity, kind, len(best), users, compromised,
@@ -175,7 +175,7 @@ def analyze(
             )
         )  # fmt: skip
 
-    # --- Por usuário: muitos IPs diferentes contra a mesma conta -----------------------------
+    # --- Per user: many different IPs against the same account ----------------------------------
     by_user: dict[str, list[Event]] = defaultdict(list)
     for e in events:
         if e.kind == "failed" and not allowed(e.ip):
@@ -206,12 +206,12 @@ def analyze(
         )  # fmt: skip
         findings.append(
             Finding(
-                f"{len(sources)} IPs distintos", "CRITICO" if accepted else "ALTO", KIND_DISTRIBUTED,
+                f"{len(sources)} distinct IPs", "CRITICAL" if accepted else "HIGH", KIND_DISTRIBUTED,
                 len(best_win), [user], accepted, "T1110.001", sources, best_win[0].line,
             )
         )  # fmt: skip
 
-    order = {"CRITICO": 0, "ALTO": 1, "MEDIO": 2}
+    order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2}
     return sorted(findings, key=lambda f: (order[f.severity], -f.attempts))
 
 
@@ -220,15 +220,15 @@ def to_issues(findings: list[Finding], location: str = "") -> list[Issue]:
     for f in findings:
         if f.compromised:
             fix = (
-                "Trate como incidente: revogue sessões, rotacione credenciais, verifique persistência "
-                "(authorized_keys, cron, usuários novos) e bloqueie a origem."
+                "Treat as an incident: revoke sessions, rotate credentials, check for persistence "
+                "(authorized_keys, cron, new users) and block the source."
             )
         else:
-            fix = "Bloqueie a origem (fail2ban/firewall), desative login por senha e root, exija chave SSH ou MFA."
-        detail = f"{f.attempts} falhas; usuários: {', '.join(f.users[:8])}; origens: {', '.join(f.sources[:8])}" + (
-            "; login aceito após as falhas" if f.compromised else ""
+            fix = "Block the source (fail2ban/firewall), disable password and root login, require SSH keys or MFA."
+        detail = f"{f.attempts} failures; users: {', '.join(f.users[:8])}; sources: {', '.join(f.sources[:8])}" + (
+            "; login accepted after the failures" if f.compromised else ""
         )
         issues.append(
-            Issue(f.rule_id, "logs", f.severity, f"{f.kind} de {f.ip}", detail, location, f.line, f.technique, fix)
+            Issue(f.rule_id, "logs", f.severity, f"{f.kind} from {f.ip}", detail, location, f.line, f.technique, fix)
         )
     return issues

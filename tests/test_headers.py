@@ -30,7 +30,7 @@ class TestHeaders(unittest.TestCase):
         self.assertGreaterEqual(pct, 90)
 
     def test_grade_is_monotonic(self):
-        # Corrigir um problema nunca pode piorar a nota (bug antigo: pesos mudavam com o status).
+        # Fixing a problem must never lower the grade (old bug: weights changed with the status).
         weak = dict(HARDENED, **{"Strict-Transport-Security": "max-age=100"})
         missing = {k: v for k, v in HARDENED.items() if k != "Strict-Transport-Security"}
         p_ok = headers.analyze_headers(HARDENED)[1]
@@ -46,14 +46,14 @@ class TestHeaders(unittest.TestCase):
     def test_weak_csp_variants(self):
         for csp in ("default-src * ", "script-src 'unsafe-inline'", "script-src 'unsafe-eval' 'self'"):
             res = {r.header: r for r in headers.analyze_headers({"Content-Security-Policy": csp})[0]}
-            self.assertEqual(res["Content-Security-Policy"].status, "FRACO", csp)
+            self.assertEqual(res["Content-Security-Policy"].status, "WEAK", csp)
 
     def test_cookie_flags(self):
         hdrs = json.loads((ROOT / "samples" / "headers_cookies.json").read_text())
         res = {r.header: r for r in headers.analyze_headers(hdrs)[0]}
-        self.assertEqual(res["Set-Cookie"].status, "FRACO")
-        self.assertIn("sid: sem Secure, SameSite", res["Set-Cookie"].detail)
-        self.assertIn("theme: sem Secure, HttpOnly, SameSite", res["Set-Cookie"].detail)
+        self.assertEqual(res["Set-Cookie"].status, "WEAK")
+        self.assertIn("sid: missing Secure, SameSite", res["Set-Cookie"].detail)
+        self.assertIn("theme: missing Secure, HttpOnly, SameSite", res["Set-Cookie"].detail)
 
     def test_secure_cookie_ok(self):
         hdrs = dict(HARDENED, **{"Set-Cookie": "sid=1; Secure; HttpOnly; SameSite=Strict"})
@@ -62,7 +62,7 @@ class TestHeaders(unittest.TestCase):
 
     def test_hsts_malformed_max_age(self):
         res = {r.header: r for r in headers.analyze_headers({"Strict-Transport-Security": "max-age=abc"})[0]}
-        self.assertEqual(res["Strict-Transport-Security"].status, "FRACO")
+        self.assertEqual(res["Strict-Transport-Security"].status, "WEAK")
 
     def test_to_issues_maps_rules_and_skips_ok(self):
         hdrs = json.loads((ROOT / "samples" / "headers_weak.json").read_text())
@@ -89,9 +89,9 @@ class TestFetchHeaders(unittest.TestCase):
         with http_server(sent) as (base, _seen):
             hdrs = headers.fetch_headers(base)
         self.assertEqual(hdrs["Server"], "nginx/1.25.3")
-        self.assertEqual(len(hdrs["Set-Cookie"]), 2)  # antes do ajuste, o segundo cookie sobrescrevia o primeiro
+        self.assertEqual(len(hdrs["Set-Cookie"]), 2)  # before the fix, the second cookie overwrote the first
         res = {r.header: r for r in headers.analyze_headers(hdrs)[0]}
-        self.assertEqual(res["Set-Cookie"].status, "FRACO")
+        self.assertEqual(res["Set-Cookie"].status, "WEAK")
         self.assertIn("theme", res["Set-Cookie"].detail)
         self.assertNotIn("sid:", res["Set-Cookie"].detail)
 

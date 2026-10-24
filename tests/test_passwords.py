@@ -13,28 +13,28 @@ FAST_SCRYPT = {"n": 2**10, "r": 8, "p": 1}
 
 class TestAudit(unittest.TestCase):
     def test_common_is_weak(self):
-        self.assertEqual(passwords.audit_password("senha123").verdict, "FRACA")
+        self.assertEqual(passwords.audit_password("qwerty123").verdict, "WEAK")
 
     def test_long_random_is_strong(self):
-        self.assertEqual(passwords.audit_password("vK9#tQ2$mZx7!Lp4wR8@").verdict, "FORTE")
+        self.assertEqual(passwords.audit_password("vK9#tQ2$mZx7!Lp4wR8@").verdict, "STRONG")
 
     def test_leetspeak_variant_of_common_password_is_caught(self):
         audit = passwords.audit_password("P@ssw0rd2026!")
-        self.assertTrue(any("Variação trivial" in i for i in audit.issues))
+        self.assertTrue(any("Trivial variation" in i for i in audit.issues))
         self.assertLessEqual(audit.score, 20)
 
     def test_keyboard_walk_and_repeats(self):
         issues = passwords.audit_password("qwerty-aaa-zzz").issues
-        self.assertTrue(any("teclado" in i for i in issues))
-        self.assertTrue(any("repetidos" in i for i in issues))
+        self.assertTrue(any("keyboard" in i for i in issues))
+        self.assertTrue(any("Repeated" in i for i in issues))
 
     def test_pwned_count_forces_weak(self):
         audit = passwords.audit_password("vK9#tQ2$mZx7!Lp4wR8@", pwned_count=12345)
-        self.assertEqual(audit.verdict, "FRACA")
-        self.assertTrue(any("12.345" in i for i in audit.issues))
+        self.assertEqual(audit.verdict, "WEAK")
+        self.assertTrue(any("12,345" in i for i in audit.issues))
 
     def test_empty_password(self):
-        self.assertEqual(passwords.audit_password("").verdict, "FRACA")
+        self.assertEqual(passwords.audit_password("").verdict, "WEAK")
 
 
 class TestGenerate(unittest.TestCase):
@@ -44,7 +44,7 @@ class TestGenerate(unittest.TestCase):
             self.assertEqual(len(pw), 20)
             self.assertTrue(any(c.islower() for c in pw) and any(c.isupper() for c in pw))
             self.assertTrue(any(c.isdigit() for c in pw) and any(not c.isalnum() for c in pw))
-            self.assertEqual(passwords.audit_password(pw).verdict, "FORTE")
+            self.assertEqual(passwords.audit_password(pw).verdict, "STRONG")
 
     def test_values_are_different(self):
         self.assertNotEqual(passwords.generate_password(), passwords.generate_password())
@@ -84,7 +84,7 @@ class TestHashing(unittest.TestCase):
             self.assertFalse(passwords.verify_password("x", bad), bad)
 
     def test_hostile_parameters_rejected_without_doing_the_work(self):
-        # Hash forjado com custo absurdo não pode virar DoS.
+        # A forged hash with an absurd cost must not become a DoS.
         self.assertFalse(
             passwords.verify_password(
                 "x", "scrypt$1073741824$8$1$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
@@ -99,7 +99,7 @@ class TestHashing(unittest.TestCase):
             passwords.verify_password(
                 "x", "scrypt$1000$8$1$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
             )
-        )  # n não é potência de 2
+        )  # n is not a power of 2
 
     def test_invalid_hash_parameters_rejected_on_creation(self):
         with self.assertRaises(ValueError):
@@ -146,7 +146,7 @@ class TestPwned(unittest.TestCase):
             f = Path(d) / "hashes.txt"
             f.write_text(f"{'A' * 40}:1\n{self._sha1().lower()}:42\n")
             self.assertEqual(passwords.pwned_count_file(self.PASSWORD, f), 42)
-            self.assertEqual(passwords.pwned_count_file("outra-senha-qualquer", f), 0)
+            self.assertEqual(passwords.pwned_count_file("some-other-password", f), 0)
 
     def test_online_fetch_rejects_bad_prefix(self):
         for bad in ("", "abc", "ZZZZZ", "../etc/passwd", "ABCDEF"):
@@ -164,7 +164,7 @@ class TestPwnedOnline(unittest.TestCase):
         ):
             count = passwords.pwned_count_range("hunter2", passwords.fetch_range_online)
         self.assertEqual(count, 17043)
-        self.assertEqual(seen["path"], f"/range/{digest[:5]}")  # somente o prefixo trafegou
+        self.assertEqual(seen["path"], f"/range/{digest[:5]}")  # only the prefix traveled over the wire
         self.assertNotIn(digest[5:], seen["path"])
         self.assertEqual(seen["padding"], "true")
 

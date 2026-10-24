@@ -37,7 +37,7 @@ class TestDetection(FimCase):
         self.assertEqual(diff["removed"], ["b.txt"])
         self.assertEqual(diff["added"], ["backdoor.php"])
 
-    @unittest.skipIf(os.name != "posix", "permissões POSIX")
+    @unittest.skipIf(os.name != "posix", "POSIX permissions")
     def test_detects_permission_change(self):
         fim.save_baseline(self.root, self.baseline)
         (self.root / "a.txt").chmod(0o777)
@@ -49,7 +49,7 @@ class TestDetection(FimCase):
         (self.root / "cache.tmp").write_text("t")
         n = fim.save_baseline(self.root, self.baseline, exclude=["*.tmp"])
         self.assertEqual(n, 3)
-        (self.root / "cache.tmp").write_text("mudou")  # excluído: não deve alertar
+        (self.root / "cache.tmp").write_text("changed")  # excluded: must not alert
         self.assertEqual(sum(map(len, fim.verify(self.root, self.baseline, exclude=["*.tmp"]).values())), 0)
 
     def test_symlinks_are_not_followed(self):
@@ -58,7 +58,7 @@ class TestDetection(FimCase):
         try:
             (self.root / "link.txt").symlink_to(outside)
         except OSError:
-            self.skipTest("symlink não suportado")
+            self.skipTest("symlinks not supported")
         self.assertEqual(fim.save_baseline(self.root, self.baseline), 2)
 
     def test_baseline_inside_root_is_ignored(self):
@@ -66,7 +66,7 @@ class TestDetection(FimCase):
         self.assertEqual(fim.save_baseline(self.root, inside), 2)
         self.assertEqual(sum(map(len, fim.verify(self.root, inside).values())), 0)
 
-    @unittest.skipIf(os.name != "posix" or os.geteuid() == 0, "requer usuário não-root POSIX")
+    @unittest.skipIf(os.name != "posix" or os.geteuid() == 0, "requires a non-root POSIX user")
     def test_unreadable_file_is_reported_not_fatal(self):
         locked = self.root / "locked.txt"
         locked.write_text("x")
@@ -91,9 +91,9 @@ class TestSignedBaseline(FimCase):
     def test_tampered_baseline_detected(self):
         fim.save_baseline(self.root, self.baseline, KEY)
         doc = json.loads(self.baseline.read_text())
-        doc["files"]["a.txt"]["sha256"] = "0" * 64  # atacante "esconde" a alteração
+        doc["files"]["a.txt"]["sha256"] = "0" * 64  # attacker "hides" the change
         self.baseline.write_text(json.dumps(doc))
-        with self.assertRaisesRegex(fim.BaselineError, "adulterada"):
+        with self.assertRaisesRegex(fim.BaselineError, "tampered"):
             fim.verify(self.root, self.baseline, KEY)
 
     def test_wrong_key_rejected(self):
@@ -103,7 +103,7 @@ class TestSignedBaseline(FimCase):
 
     def test_missing_key_for_signed_baseline(self):
         fim.save_baseline(self.root, self.baseline, KEY)
-        with self.assertRaisesRegex(fim.BaselineError, "assinada"):
+        with self.assertRaisesRegex(fim.BaselineError, "signed baseline"):
             fim.verify(self.root, self.baseline)
 
     def test_signature_stripping_downgrade_rejected(self):
@@ -111,11 +111,11 @@ class TestSignedBaseline(FimCase):
         doc = json.loads(self.baseline.read_text())
         doc["signature"] = None
         self.baseline.write_text(json.dumps(doc))
-        with self.assertRaisesRegex(fim.BaselineError, "SEM assinatura"):
+        with self.assertRaisesRegex(fim.BaselineError, "NO signature"):
             fim.verify(self.root, self.baseline, KEY)
 
     def test_corrupt_and_old_format_rejected(self):
-        self.baseline.write_text("{nao é json")
+        self.baseline.write_text("{not json")
         with self.assertRaises(fim.BaselineError):
             fim.load_baseline(self.baseline)
         self.baseline.write_text(json.dumps({"a.txt": {"sha256": "x"}}))
@@ -137,7 +137,7 @@ class TestKeys(FimCase):
         with self.assertRaises(ValueError):
             fim.parse_key("zzzz")
         with self.assertRaises(ValueError):
-            fim.parse_key("aabb")  # curta demais
+            fim.parse_key("aabb")  # too short
 
 
 class TestUnreadable(FimCase):

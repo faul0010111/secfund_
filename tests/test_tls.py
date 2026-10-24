@@ -29,22 +29,22 @@ class TestEvaluate(unittest.TestCase):
 
     def test_expired_certificate_is_critical(self):
         issues = tls.evaluate(healthy(not_after=NOW - timedelta(days=3)), NOW)
-        self.assertEqual(issues[0].severity, "CRITICO")
-        self.assertIn("expirou", issues[0].title)
+        self.assertEqual(issues[0].severity, "CRITICAL")
+        self.assertIn("expired", issues[0].title)
 
     def test_expiry_thresholds(self):
-        self.assertEqual(tls.evaluate(healthy(not_after=NOW + timedelta(days=10, hours=1)), NOW)[0].severity, "ALTO")
-        self.assertEqual(tls.evaluate(healthy(not_after=NOW + timedelta(days=20, hours=1)), NOW)[0].severity, "MEDIO")
+        self.assertEqual(tls.evaluate(healthy(not_after=NOW + timedelta(days=10, hours=1)), NOW)[0].severity, "HIGH")
+        self.assertEqual(tls.evaluate(healthy(not_after=NOW + timedelta(days=20, hours=1)), NOW)[0].severity, "MEDIUM")
         self.assertEqual(tls.evaluate(healthy(not_after=NOW + timedelta(days=31)), NOW), [])
 
     def test_untrusted_certificate(self):
         info = healthy(verified=False, verify_error="self-signed certificate")
         issue = tls.evaluate(info, NOW)[0]
-        self.assertEqual((issue.rule_id, issue.severity), ("SF-TLS-001", "ALTO"))
+        self.assertEqual((issue.rule_id, issue.severity), ("SF-TLS-001", "HIGH"))
 
     def test_expired_verify_error_is_critical(self):
         info = healthy(verified=False, verify_error="certificate has expired")
-        self.assertEqual(tls.evaluate(info, NOW)[0].severity, "CRITICO")
+        self.assertEqual(tls.evaluate(info, NOW)[0].severity, "CRITICAL")
 
     def test_obsolete_protocol(self):
         for proto in ("TLSv1", "TLSv1.1", "SSLv3"):
@@ -62,9 +62,9 @@ class TestEvaluate(unittest.TestCase):
         self.assertEqual(issues[0].location, "legacy.test:443")
 
 
-@unittest.skipUnless(shutil.which("openssl"), "openssl não disponível")
+@unittest.skipUnless(shutil.which("openssl"), "openssl not available")
 class TestLiveServers(unittest.TestCase):
-    """Testes de integração contra servidores TLS locais (loopback)."""
+    """Integration tests against local (loopback) TLS servers."""
 
     @classmethod
     def setUpClass(cls):
@@ -84,11 +84,11 @@ class TestLiveServers(unittest.TestCase):
         self.assertIn("SF-TLS-001", {i.rule_id for i in tls.evaluate(info)})
 
     def test_trusted_certificate_is_parsed(self):
-        # SSL_CERT_FILE faz o contexto padrão confiar no certificado de teste (âncora de confiança).
+        # SSL_CERT_FILE makes the default context trust the test certificate (trust anchor).
         with mock.patch.dict(os.environ, {"SSL_CERT_FILE": str(self.cert)}), tls_server(self.cert, self.key) as port:
             info = tls.fetch_tls("localhost", port, timeout=3)
         if not info.verified:
-            self.skipTest(f"OpenSSL local recusou a âncora autoassinada: {info.verify_error}")
+            self.skipTest(f"Local OpenSSL rejected the self-signed anchor: {info.verify_error}")
         self.assertEqual(info.subject, "localhost")
         self.assertIn("localhost", info.san)
         self.assertIsNotNone(info.not_after)

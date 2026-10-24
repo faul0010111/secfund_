@@ -1,3 +1,3 @@
-"""SecFund - Toolkit defensivo de fundamentos de cibersegurança."""
+"""SecFund - Defensive cybersecurity fundamentals toolkit."""
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"

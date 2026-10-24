@@ -1,11 +1,11 @@
-"""Monitor de integridade de arquivos (FIM) com baseline assinada por HMAC-SHA256.
+"""File integrity monitor (FIM) with an HMAC-SHA256 signed baseline.
 
-Mapeamento: MITRE T1565 (Data Manipulation), T1505.003 (Web Shell), T1070 (Indicator Removal),
-CIS Control 3. Sem assinatura, quem altera os arquivos também pode regravar a baseline e esconder
-o rastro; com HMAC (chave guardada fora do host monitorado) a adulteração é detectada.
+Mapping: MITRE T1565 (Data Manipulation), T1505.003 (Web Shell), T1070 (Indicator Removal),
+CIS Control 3. Without a signature, whoever modifies the files can also rewrite the baseline and
+hide the trail; with an HMAC (key stored outside the monitored host) tampering is detected.
 
-Um atacante também pode tentar "rebaixar" a verificação removendo a assinatura da baseline:
-por isso, se uma chave é fornecida e a baseline NÃO está assinada, a verificação falha.
+An attacker may also try to "downgrade" verification by stripping the signature from the baseline:
+therefore, if a key is provided and the baseline is NOT signed, verification fails.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ MIN_KEY_BYTES = 16
 
 
 class BaselineError(Exception):
-    """Baseline inválida, adulterada ou incompatível com a chave informada."""
+    """Baseline is invalid, tampered with, or incompatible with the provided key."""
 
 
 def sha256_file(path: Path, chunk: int = 65536) -> str:
@@ -48,9 +48,9 @@ def _excluded(rel: str, patterns: Iterable[str]) -> bool:
 def snapshot(
     root: str | Path, exclude: Iterable[str] = (), skipped: list[str] | None = None
 ) -> dict[str, dict[str, Any]]:
-    """Gera {caminho_relativo: {sha256, size, mode}} sem seguir symlinks.
+    """Builds {relative_path: {sha256, size, mode}} without following symlinks.
 
-    Arquivos ilegíveis (permissão etc.) são anotados em ``skipped`` em vez de abortar a varredura.
+    Unreadable files (permissions etc.) are recorded in ``skipped`` instead of aborting the scan.
     """
     root_path = Path(root).resolve()
     patterns = list(exclude)
@@ -71,16 +71,16 @@ def snapshot(
     return result
 
 
-# --- Chaves e assinatura -------------------------------------------------------------------
+# --- Keys and signing ----------------------------------------------------------------------
 
 
 def parse_key(text: str) -> bytes:
     try:
         key = bytes.fromhex(text.strip())
     except ValueError as e:
-        raise ValueError("chave inválida: esperado texto hexadecimal") from e
+        raise ValueError("invalid key: expected hexadecimal text") from e
     if len(key) < MIN_KEY_BYTES:
-        raise ValueError(f"chave curta demais (mínimo {MIN_KEY_BYTES} bytes)")
+        raise ValueError(f"key too short (minimum {MIN_KEY_BYTES} bytes)")
     return key
 
 
@@ -89,7 +89,7 @@ def load_key_file(path: str | Path) -> bytes:
 
 
 def generate_key_file(path: str | Path) -> None:
-    """Cria uma chave aleatória de 256 bits com permissão 0600; nunca sobrescreve."""
+    """Creates a random 256-bit key with 0600 permissions; never overwrites an existing file."""
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         f.write(secrets.token_hex(32) + "\n")
@@ -104,12 +104,12 @@ def _sign(doc: dict[str, Any], key: bytes) -> str:
     return hmac.new(key, _canonical(doc), hashlib.sha256).hexdigest()
 
 
-# --- Baseline -------------------------------------------------------------------------------
+# --- Baseline ------------------------------------------------------------------------------
 
 
 def _baseline_exclusions(root: Path, baseline_path: Path, exclude: Iterable[str]) -> list[str]:
     patterns = list(exclude)
-    with contextlib.suppress(ValueError):  # baseline fora da raiz monitorada (recomendado) -> nada a excluir
+    with contextlib.suppress(ValueError):  # baseline outside the monitored root (recommended): nothing to exclude
         patterns.append(baseline_path.resolve().relative_to(root.resolve()).as_posix())
     return patterns
 
@@ -128,7 +128,7 @@ def save_baseline(
     doc["signature"] = _sign(doc, key) if key else None
     tmp = base_p.with_name(base_p.name + ".tmp")
     tmp.write_text(json.dumps(doc, indent=2, sort_keys=True), encoding="utf-8")
-    os.replace(tmp, base_p)  # escrita atômica
+    os.replace(tmp, base_p)  # atomic write
     return len(files)
 
 
@@ -136,16 +136,16 @@ def load_baseline(path: str | Path, key: bytes | None = None) -> dict[str, Any]:
     try:
         doc = json.loads(Path(path).read_text(encoding="utf-8"))
         if doc.get("version") != BASELINE_VERSION or not isinstance(doc.get("files"), dict):
-            raise BaselineError("formato de baseline desconhecido (recrie com 'fim init')")
+            raise BaselineError("unknown baseline format (recreate it with 'fim init')")
     except json.JSONDecodeError as e:
-        raise BaselineError(f"baseline ilegível: {e}") from e
+        raise BaselineError(f"unreadable baseline: {e}") from e
     signature = doc.get("signature")
     if signature and not key:
-        raise BaselineError("baseline assinada: informe a chave (--key-file ou SECFUND_KEY)")
+        raise BaselineError("signed baseline: provide the key (--key-file or SECFUND_KEY)")
     if key and not signature:
-        raise BaselineError("baseline SEM assinatura, mas uma chave foi informada: possível remoção da assinatura")
+        raise BaselineError("baseline has NO signature, but a key was provided: possible signature stripping")
     if key and not hmac.compare_digest(str(signature), _sign(doc, key)):
-        raise BaselineError("assinatura inválida: baseline adulterada ou chave incorreta")
+        raise BaselineError("invalid signature: baseline tampered with, or wrong key")
     files: dict[str, Any] = doc["files"]
     return files
 
@@ -172,12 +172,19 @@ def verify(
 
 
 _RULES = {
-    "modified": ("SF-FIM-001", "ALTO", "T1565"),
-    "added": ("SF-FIM-002", "MEDIO", "T1505.003"),
-    "removed": ("SF-FIM-003", "MEDIO", "T1070"),
-    "permissions": ("SF-FIM-004", "BAIXO", "T1222"),
+    "modified": ("SF-FIM-001", "HIGH", "T1565"),
+    "added": ("SF-FIM-002", "MEDIUM", "T1505.003"),
+    "removed": ("SF-FIM-003", "MEDIUM", "T1070"),
+    "permissions": ("SF-FIM-004", "LOW", "T1222"),
 }
-_LABEL = {"modified": "modificado", "added": "novo", "removed": "removido", "permissions": "permissão alterada"}
+# Display labels, in report order.
+LABELS = {"modified": "MODIFIED", "added": "NEW", "removed": "REMOVED", "permissions": "PERMISSIONS"}
+_TITLE = {
+    "modified": "File modified",
+    "added": "New file",
+    "removed": "File removed",
+    "permissions": "Permissions changed",
+}
 
 
 def to_issues(diff: dict[str, list[str]], root: str | Path = "") -> list[Issue]:
@@ -186,8 +193,8 @@ def to_issues(diff: dict[str, list[str]], root: str | Path = "") -> list[Issue]:
         for rel in diff[key]:
             issues.append(
                 Issue(
-                    rule, "fim", severity, f"Arquivo {_LABEL[key]}: {rel}", "", (Path(root) / rel).as_posix(),
-                    0, technique, "Confirme se a mudança foi autorizada; se não, isole o host e investigue.",
+                    rule, "fim", severity, f"{_TITLE[key]}: {rel}", "", (Path(root) / rel).as_posix(),
+                    0, technique, "Confirm the change was authorized; if not, isolate the host and investigate.",
                 )
             )  # fmt: skip
     return issues

@@ -39,15 +39,15 @@ class TestLogsCommand(unittest.TestCase):
     def test_text_report_and_exit_code(self):
         code, out, _ = run("logs", LOG, "--year", "2026")
         self.assertEqual(code, 2)
-        self.assertIn("28 eventos analisados", out)
-        self.assertIn("POSSÍVEL COMPROMETIMENTO", out)
-        self.assertIn("Ataque distribuído", out)
+        self.assertIn("28 events analyzed", out)
+        self.assertIn("POSSIBLE COMPROMISE", out)
+        self.assertIn("Distributed attack", out)
 
     def test_json_output_is_pure_json(self):
         code, out, _ = run("logs", LOG, "--year", "2026", "--format", "json")
         doc = json.loads(out)
         self.assertEqual(code, 2)
-        self.assertEqual(doc["summary"]["CRITICO"], 1)
+        self.assertEqual(doc["summary"]["CRITICAL"], 1)
 
     def test_sarif_to_file(self):
         with tempfile.TemporaryDirectory() as d:
@@ -55,7 +55,7 @@ class TestLogsCommand(unittest.TestCase):
             code, out, err = run("logs", LOG, "--year", "2026", "--format", "sarif", "-o", str(target))
             self.assertEqual(code, 2)
             self.assertEqual(out, "")
-            self.assertIn("Relatório salvo", err)
+            self.assertIn("Report saved", err)
             self.assertEqual(json.loads(target.read_text())["version"], "2.1.0")
 
     def test_allowlist_and_fail_on(self):
@@ -70,12 +70,12 @@ class TestLogsCommand(unittest.TestCase):
             clean.write_text("Oct 17 09:02:20 srv sshd[1]: Accepted publickey for alice from 192.0.2.10 port 3 ssh2\n")
             code, out, _ = run("logs", str(clean), "--year", "2026")
             self.assertEqual(code, 0)
-            self.assertIn("Nenhuma atividade suspeita", out)
+            self.assertIn("No suspicious activity", out)
 
     def test_missing_file_is_exit_3(self):
-        code, _, err = run("logs", "/nao/existe.log")
+        code, _, err = run("logs", "/does/not/exist.log")
         self.assertEqual(code, 3)
-        self.assertIn("Erro", err)
+        self.assertIn("Error:", err)
 
     def test_invalid_allowlist_is_exit_3(self):
         self.assertEqual(run("logs", LOG, "--allow-ip", "xyz")[0], 3)
@@ -93,22 +93,22 @@ class TestFimCommand(unittest.TestCase):
             self.assertEqual(run("fim", "keygen", "--key-file", key)[0], 0)
             code, out, _ = run("fim", "init", str(site), "--baseline", baseline, "--key-file", key)
             self.assertEqual(code, 0)
-            self.assertIn("assinada com HMAC", out)
+            self.assertIn("signed with HMAC", out)
 
             code, out, _ = run("fim", "check", str(site), "--baseline", baseline, "--key-file", key)
-            self.assertEqual((code, "Integridade OK." in out), (0, True))
+            self.assertEqual((code, "Integrity OK." in out), (0, True))
 
             (site / "index.html").write_text("DEFACED")
             code, out, _ = run("fim", "check", str(site), "--baseline", baseline, "--key-file", key)
             self.assertEqual(code, 1)
-            self.assertIn("MODIFICADO", out)
+            self.assertIn("MODIFIED", out)
 
             doc = json.loads(Path(baseline).read_text())
             doc["files"]["index.html"]["sha256"] = "0" * 64
             Path(baseline).write_text(json.dumps(doc))
             code, _, err = run("fim", "check", str(site), "--baseline", baseline, "--key-file", key)
             self.assertEqual(code, 4)
-            self.assertIn("ALERTA DE INTEGRIDADE", err)
+            self.assertIn("INTEGRITY ALERT", err)
 
     def test_key_from_environment_and_unsigned_warning(self):
         with tempfile.TemporaryDirectory() as d:
@@ -117,10 +117,10 @@ class TestFimCommand(unittest.TestCase):
             (site / "a").write_text("a")
             baseline = str(Path(d) / "b.json")
             _, out, _ = run("fim", "init", str(site), "--baseline", baseline)
-            self.assertIn("SEM assinatura", out)
+            self.assertIn("UNSIGNED", out)
             code, _, err = run("fim", "check", str(site), "--baseline", baseline, env={"SECFUND_KEY": "cc" * 32})
-            self.assertEqual(code, 4)  # chave informada + baseline sem assinatura = downgrade
-            self.assertIn("SEM assinatura", err)
+            self.assertEqual(code, 4)  # key provided + unsigned baseline = downgrade attempt
+            self.assertIn("NO signature", err)
 
     def test_usage_errors(self):
         self.assertEqual(run("fim", "keygen")[0], 3)
@@ -129,14 +129,14 @@ class TestFimCommand(unittest.TestCase):
 
 class TestPasswordCommand(unittest.TestCase):
     def test_weak_password_exit_1(self):
-        code, out, _ = run("password", "--password", "senha123")
+        code, out, _ = run("password", "--password", "qwerty123")
         self.assertEqual(code, 1)
-        self.assertIn("FRACA", out)
+        self.assertIn("WEAK", out)
 
     def test_generate_hash_verify_cycle(self):
         code, out, _ = run("password", "--generate", "--length", "24", "--hash", "--algo", "pbkdf2")
         self.assertEqual(code, 0)
-        pw = out.split("Senha gerada: ")[1].splitlines()[0]
+        pw = out.split("Generated password: ")[1].splitlines()[0]
         stored = out.strip().splitlines()[-1]
         self.assertTrue(stored.startswith("pbkdf2_sha256$"))
         self.assertEqual(run("password", "--password", pw, "--verify", stored)[0], 0)
@@ -148,7 +148,7 @@ class TestPasswordCommand(unittest.TestCase):
         stored = passwords.hash_password("abc", "pbkdf2", iterations=1000)
         code, out, _ = run("password", "--password", "abc", "--verify", stored, "--algo", "pbkdf2")
         self.assertEqual(code, 0)
-        self.assertIn("desatualizados", out)
+        self.assertIn("outdated", out)
 
     def test_offline_pwned_file(self):
         import hashlib
@@ -159,14 +159,14 @@ class TestPasswordCommand(unittest.TestCase):
             f.write_text(f"{digest}:77\n")
             code, out, _ = run("password", "--password", "vK9#tQ2$mZx7!Lp4wR8@", "--pwned-file", str(f))
             self.assertEqual(code, 1)
-            self.assertIn("77 vazamentos", out)
+            self.assertIn("77 known data breach", out)
 
 
 class TestHeadersCommand(unittest.TestCase):
     def test_weak_site(self):
         code, out, _ = run("headers", "--json-file", WEAK)
         self.assertEqual(code, 1)
-        self.assertIn("Nota: F", out)
+        self.assertIn("Grade: F", out)
 
     def test_fail_on_critical_ignores_medium_findings(self):
         self.assertEqual(run("headers", "--json-file", WEAK, "--fail-on", "critical")[0], 0)
@@ -190,7 +190,7 @@ class TestTlsCommand(unittest.TestCase):
     def test_unreachable_host_is_exit_3(self):
         code, _, err = run("tls", "127.0.0.1:1", "--timeout", "1")
         self.assertEqual(code, 3)
-        self.assertIn("Erro", err)
+        self.assertIn("Error:", err)
 
 
 class TestMisc(unittest.TestCase):
@@ -204,7 +204,7 @@ class TestMisc(unittest.TestCase):
             main([])
 
 
-@unittest.skipUnless(shutil.which("openssl"), "openssl não disponível")
+@unittest.skipUnless(shutil.which("openssl"), "openssl not available")
 class TestTlsAgainstLocalServer(unittest.TestCase):
     def test_self_signed_server_report(self):
         with tempfile.TemporaryDirectory() as d:
@@ -212,8 +212,8 @@ class TestTlsAgainstLocalServer(unittest.TestCase):
             with tls_server(cert, key) as port:
                 code, out, _ = run("tls", f"127.0.0.1:{port}", "--timeout", "3")
                 self.assertEqual(code, 1)
-                self.assertIn("INVÁLIDOS", out)
-                self.assertIn("Certificado não confiável", out)
+                self.assertIn("INVALID", out)
+                self.assertIn("Certificate not trusted", out)
                 code, out, _ = run("tls", f"https://127.0.0.1:{port}/", "--format", "json", "--timeout", "3")
                 self.assertEqual(json.loads(out)["issues"][0]["rule_id"], "SF-TLS-001")
 
@@ -237,11 +237,11 @@ class TestPwnedOnlineCli(unittest.TestCase):
         with mock.patch.object(passwords, "fetch_range_online", lambda prefix: f"{digest[5:]}:5\n") as _:
             code, out, _ = run("password", "--password", "hunter2", "--pwned")
         self.assertEqual(code, 1)
-        self.assertIn("5 vazamentos", out)
+        self.assertIn("5 known data breach", out)
         self.assertIn("k-anonymity", out)
 
 
-@unittest.skipIf(os.name != "posix", "permissões POSIX")
+@unittest.skipIf(os.name != "posix", "POSIX permissions")
 class TestKeyPermissionWarning(unittest.TestCase):
     def test_world_readable_key_warns(self):
         with tempfile.TemporaryDirectory() as d:

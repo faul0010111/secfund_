@@ -1,10 +1,10 @@
-"""Auditoria de TLS: validade do certificado, expiração, versão do protocolo e cipher suite.
+"""TLS audit: certificate validity, expiration, protocol version and cipher suite.
 
-Mapeamento: OWASP A02:2021 (Cryptographic Failures), CIS Control 3.10 (criptografia em trânsito).
-Uso defensivo: apenas hosts que você possui ou tem autorização para avaliar.
+Mapping: OWASP A02:2021 (Cryptographic Failures), CIS Control 3.10 (encryption in transit).
+Defensive use: only hosts you own or are authorized to assess.
 
-Limitação conhecida: avalia o que foi NEGOCIADO por um cliente moderno (TLS >= 1.2). Não enumera
-todas as versões/ciphers que o servidor aceita (isso exige varredura ativa, ex.: testssl.sh).
+Known limitation: it evaluates what was NEGOTIATED by a modern client (TLS >= 1.2). It does not
+enumerate every version/cipher the server accepts (that requires active scanning, e.g. testssl.sh).
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ def _fill_connection(info: TlsInfo, conn: ssl.SSLSocket) -> None:
 
 
 def _fill_cert(info: TlsInfo, conn: ssl.SSLSocket) -> None:
-    # O typeshed tipa getpeercert() de forma ampla demais; a estrutura real está documentada no módulo ssl.
+    # typeshed types getpeercert() too broadly; the real structure is documented in the ssl module.
     cert = cast("dict[str, Any]", conn.getpeercert())
     if not cert:
         return
@@ -65,7 +65,7 @@ def _fill_cert(info: TlsInfo, conn: ssl.SSLSocket) -> None:
 
 
 def fetch_tls(host: str, port: int = 443, timeout: float = 10.0) -> TlsInfo:
-    """Conecta, valida a cadeia/hostname e coleta protocolo, cipher e certificado."""
+    """Connects, validates chain/hostname and collects protocol, cipher and certificate."""
     info = TlsInfo(host, port)
     context = ssl.create_default_context()
     try:
@@ -78,10 +78,10 @@ def fetch_tls(host: str, port: int = 443, timeout: float = 10.0) -> TlsInfo:
             info.verified = True
     except ssl.SSLCertVerificationError as e:
         info.verify_error = e.verify_message or str(e)
-        # Reconecta SEM validar apenas para ler protocolo/cipher; nenhum dado é enviado.
+        # Reconnect WITHOUT validation only to read protocol/cipher; no data is sent.
         loose = ssl.create_default_context()
         loose.check_hostname = False
-        # Somente leitura de parâmetros do handshake (versão/cipher); nenhum dado da aplicação é enviado.
+        # Read-only inspection of handshake parameters (version/cipher); no application data is sent.
         loose.verify_mode = ssl.CERT_NONE  # nosec B501
         try:
             with (
@@ -103,45 +103,45 @@ def evaluate(info: TlsInfo, now: datetime | None = None) -> list[Issue]:
 
     if info.handshake_error:
         issues.append(Issue(
-            "SF-TLS-003", "tls", "ALTO", "Handshake TLS falhou", info.handshake_error, where, 0, "OWASP A02:2021",
-            "Habilite TLS 1.2/1.3 com ciphers modernos; clientes atuais recusam protocolos antigos.",
+            "SF-TLS-003", "tls", "HIGH", "TLS handshake failed", info.handshake_error, where, 0, "OWASP A02:2021",
+            "Enable TLS 1.2/1.3 with modern ciphers; current clients refuse legacy protocols.",
         ))  # fmt: skip
 
     if info.verify_error:
         expired = "expired" in info.verify_error.lower()
         issues.append(Issue(
-            "SF-TLS-001", "tls", "CRITICO" if expired else "ALTO", "Certificado não confiável",
+            "SF-TLS-001", "tls", "CRITICAL" if expired else "HIGH", "Certificate not trusted",
             info.verify_error, where, 0, "OWASP A02:2021 / T1557",
-            "Instale um certificado válido emitido por CA confiável, com SAN para o hostname e cadeia completa.",
+            "Install a valid certificate issued by a trusted CA, with a SAN for the hostname and the full chain.",
         ))  # fmt: skip
 
     if info.not_after is not None:
         days = (info.not_after - now).days
         if days < 0:
-            severity = "CRITICO"
+            severity = "CRITICAL"
         elif days < 15:
-            severity = "ALTO"
+            severity = "HIGH"
         elif days < 30:
-            severity = "MEDIO"
+            severity = "MEDIUM"
         else:
             severity = ""
         if severity:
-            state = f"expirou há {-days} dia(s)" if days < 0 else f"expira em {days} dia(s)"
+            state = f"expired {-days} day(s) ago" if days < 0 else f"expires in {days} day(s)"
             issues.append(Issue(
-                "SF-TLS-002", "tls", severity, f"Certificado {state}", info.not_after.date().isoformat(), where, 0,
-                "OWASP A02:2021", "Automatize a renovação (ACME/Let's Encrypt) e monitore a expiração.",
+                "SF-TLS-002", "tls", severity, f"Certificate {state}", info.not_after.date().isoformat(), where, 0,
+                "OWASP A02:2021", "Automate renewal (ACME/Let's Encrypt) and monitor expiration.",
             ))  # fmt: skip
 
     if info.protocol in OBSOLETE_PROTOCOLS:
         issues.append(Issue(
-            "SF-TLS-003", "tls", "ALTO", f"Protocolo obsoleto negociado: {info.protocol}", "", where, 0,
-            "OWASP A02:2021", "Desative SSLv3/TLS 1.0/1.1; mantenha apenas TLS 1.2 e 1.3.",
+            "SF-TLS-003", "tls", "HIGH", f"Obsolete protocol negotiated: {info.protocol}", "", where, 0,
+            "OWASP A02:2021", "Disable SSLv3/TLS 1.0/1.1; keep only TLS 1.2 and 1.3.",
         ))  # fmt: skip
 
     cipher_upper = info.cipher.upper()
     if any(m in cipher_upper for m in WEAK_CIPHER_MARKERS) or (0 < info.cipher_bits < 128):
         issues.append(Issue(
-            "SF-TLS-004", "tls", "ALTO", f"Cipher suite fraca: {info.cipher} ({info.cipher_bits} bits)", "", where, 0,
-            "OWASP A02:2021", "Use apenas suites AEAD (AES-GCM, ChaCha20-Poly1305) com troca de chaves ECDHE.",
+            "SF-TLS-004", "tls", "HIGH", f"Weak cipher suite: {info.cipher} ({info.cipher_bits} bits)", "", where, 0,
+            "OWASP A02:2021", "Use only AEAD suites (AES-GCM, ChaCha20-Poly1305) with ECDHE key exchange.",
         ))  # fmt: skip
     return issues

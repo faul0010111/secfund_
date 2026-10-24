@@ -23,7 +23,7 @@ class TestSampleLog(unittest.TestCase):
         top = logs.analyze(self.events)[0]
         self.assertEqual(top.ip, "203.0.113.45")
         self.assertTrue(top.compromised)
-        self.assertEqual(top.severity, "CRITICO")
+        self.assertEqual(top.severity, "CRITICAL")
         self.assertEqual(top.rule_id, "SF-LOGS-001")
 
     def test_detects_spraying(self):
@@ -48,19 +48,19 @@ class TestSampleLog(unittest.TestCase):
 
     def test_invalid_allowlist_raises(self):
         with self.assertRaises(ValueError):
-            logs.analyze(self.events, allowlist=["nao-e-ip"])
+            logs.analyze(self.events, allowlist=["not-an-ip"])
 
     def test_to_issues(self):
         issues = logs.to_issues(logs.analyze(self.events), "samples/auth.log")
-        self.assertEqual(issues[0].severity, "CRITICO")
+        self.assertEqual(issues[0].severity, "CRITICAL")
         self.assertEqual(issues[0].location, "samples/auth.log")
         self.assertGreater(issues[0].line, 0)
-        self.assertIn("incidente", issues[0].remediation)
+        self.assertIn("incident", issues[0].remediation)
 
 
 class TestWindow(unittest.TestCase):
     def test_slow_attack_outside_window_not_flagged(self):
-        # 6 falhas espaçadas de 2 em 2 minutos: no máximo 3 dentro de qualquer janela de 5 min.
+        # 6 failures spaced 2 minutes apart: at most 3 fall inside any 5-minute window.
         lines = [fail_line(m, 0, "root", "198.18.0.1") for m in range(0, 12, 2)]
         self.assertEqual(logs.analyze(logs.parse_log(lines, 2026)), [])
 
@@ -84,7 +84,7 @@ class TestParserHardening(unittest.TestCase):
         )
         ev = logs.parse_line(line, 2026)
         self.assertIsNotNone(ev)
-        self.assertEqual(ev.ip, "203.0.113.99")  # IP real, não o forjado no nome de usuário
+        self.assertEqual(ev.ip, "203.0.113.99")  # the real IP, not the one forged inside the username
 
     def test_control_characters_are_sanitized(self):
         line = (
@@ -141,7 +141,7 @@ class TestMoreParsing(unittest.TestCase):
         self.assertIsNone(logs.parse_line("Oct 17 10:00:00 srv sshd[1]: Connection closed by 1.2.3.4 port 22", 2026))
 
     def test_log_file_is_streamed_not_loaded(self):
-        # parse_log aceita qualquer iterável (arquivo aberto, gerador) sem materializar as linhas.
+        # parse_log accepts any iterable (open file, generator) without materializing the lines.
         gen = (fail_line(0, s, "root", "198.18.0.1") for s in range(0, 40, 4))
         self.assertEqual(len(logs.parse_log(gen, 2026)), 10)
 
