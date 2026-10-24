@@ -1,4 +1,4 @@
-# secfund - defensive cybersecurity fundamentals toolkit
+# Secfund - Defensive Cybersecurity Fundamentals Toolkit
 
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)
